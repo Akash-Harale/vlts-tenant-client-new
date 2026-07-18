@@ -8,16 +8,17 @@ import {
 } from "../store/slices/mappingsSlice";
 import { fetchDevices } from "../store/slices/gpsDevicesSlice";
 import { fetchVehicles } from "../store/slices/vehiclesSlice";
+import { fetchClients } from "../store/slices/clientsSlice";
 import {
   KeyRound,
   Plus,
   X,
   Search,
-  CheckCircle2,
   AlertCircle,
   Unlink,
   Car,
   Cpu,
+  Building2,
 } from "lucide-react";
 
 export default function VehicleDeviceMap() {
@@ -25,12 +26,15 @@ export default function VehicleDeviceMap() {
   const { items: mappings, loading, error } = useSelector((state) => state.mappings);
   const { items: devices } = useSelector((state) => state.gpsDevices);
   const { items: vehicles } = useSelector((state) => state.vehicles);
+  const { items: clients } = useSelector((state) => state.clients);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [mappingToUpdate, setMappingToUpdate] = useState(null); // Used to track device swaps
 
   // Form states
+  const [selectedFilterClientId, setSelectedFilterClientId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [gpsDeviceId, setGpsDeviceId] = useState("");
 
@@ -40,10 +44,19 @@ export default function VehicleDeviceMap() {
     dispatch(fetchMappings());
     dispatch(fetchDevices());
     dispatch(fetchVehicles());
+    dispatch(fetchClients());
   }, [dispatch]);
+
+  // Set default client filter once clients list loads
+  useEffect(() => {
+    if (clients.length > 0 && !selectedFilterClientId) {
+      setSelectedFilterClientId(clients[0]._id);
+    }
+  }, [clients, selectedFilterClientId]);
 
   const openCreateModal = () => {
     setMappingToUpdate(null);
+    setSelectedClientId("");
     setVehicleId("");
     
     // Default select device (ACTIVE status and currently unmapped)
@@ -129,10 +142,26 @@ export default function VehicleDeviceMap() {
     (v) => !mappings.some((m) => m.vehicle_id?._id === v._id || m.vehicle_id === v._id)
   );
 
+  const clientFilteredVehicles = activeUnmappedVehicles.filter(
+    (v) => {
+      const cid = v.client_id?._id || v.client_id;
+      return cid === selectedClientId;
+    }
+  );
+
   const filteredMappings = mappings.filter((m) => {
+    // Check client filter first
+    const cid = m.vehicle_id?.client_id?._id || m.vehicle_id?.client_id;
+    if (selectedFilterClientId && cid !== selectedFilterClientId) {
+      return false;
+    }
+
     const regNo = m.vehicle_id?.registration_number || "";
     const imei = m.gps_device_id?.imei || "";
-    const clientName = m.vehicle_id?.client_id?.entity_name || "";
+    
+    // Resolve client name from Redux store for search matching
+    const clientObj = clients.find((c) => c._id === cid);
+    const clientName = clientObj ? clientObj.entity_name : (m.vehicle_id?.client_id?.entity_name || "");
     const searchLower = searchTerm.toLowerCase();
 
     return (
@@ -144,6 +173,32 @@ export default function VehicleDeviceMap() {
 
   return (
     <div className="space-y-6">
+      {/* Client Filter Dropdown */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Building2 className="text-blue-650" size={18} />
+          <span className="text-sm font-bold text-slate-700">Selected Client Fleet:</span>
+          <select
+            value={selectedFilterClientId}
+            onChange={(e) => setSelectedFilterClientId(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 bg-slate-50 cursor-pointer"
+          >
+            {clients.length === 0 ? (
+              <option value="">No Client Profiles Onboarded</option>
+            ) : (
+              clients.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.entity_name}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+        <div className="text-xs text-slate-400 font-medium">
+          Showing device mappings registered under the selected client profile.
+        </div>
+      </div>
+
       {/* Action panel */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative max-w-sm w-full">
@@ -234,7 +289,11 @@ export default function VehicleDeviceMap() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-600">
-                      {m.vehicle_id?.client_id?.entity_name || "N/A"}
+                      {(() => {
+                        const cid = m.vehicle_id?.client_id?._id || m.vehicle_id?.client_id;
+                        const clientObj = clients.find((c) => c._id === cid);
+                        return clientObj ? clientObj.entity_name : (m.vehicle_id?.client_id?.entity_name || "N/A");
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 border border-emerald-100 text-emerald-700">
@@ -295,12 +354,60 @@ export default function VehicleDeviceMap() {
                   </div>
                 )}
 
-                {/* Target Vehicle Select */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Target Fleet Vehicle *
-                  </label>
-                  {mappingToUpdate ? (
+                {/* Target Client & Vehicle Select */}
+                {!mappingToUpdate && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        Target Client *
+                      </label>
+                      <select
+                        value={selectedClientId}
+                        required
+                        onChange={(e) => {
+                          setSelectedClientId(e.target.value);
+                          setVehicleId("");
+                        }}
+                        className="w-full px-4 py-3 border border-slate-205 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 bg-slate-50/50 cursor-pointer"
+                      >
+                        <option value="" disabled>Select client account</option>
+                        {clients.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.entity_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        Target Fleet Vehicle *
+                      </label>
+                      <select
+                        value={vehicleId}
+                        required
+                        disabled={!selectedClientId}
+                        onChange={(e) => setVehicleId(e.target.value)}
+                        className="w-full px-4 py-3 border border-slate-205 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 bg-slate-50/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="" disabled>
+                          {!selectedClientId ? "Select client first" : "Select vehicle reg number"}
+                        </option>
+                        {clientFilteredVehicles.map((v) => (
+                          <option key={v._id} value={v._id}>
+                            {v.registration_number}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {mappingToUpdate && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Target Fleet Vehicle *
+                    </label>
                     <input
                       type="text"
                       disabled
@@ -309,22 +416,8 @@ export default function VehicleDeviceMap() {
                       }
                       className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-slate-100 text-slate-500 font-bold select-none"
                     />
-                  ) : (
-                    <select
-                      value={vehicleId}
-                      required
-                      onChange={(e) => setVehicleId(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-205 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 bg-slate-50/50 cursor-pointer"
-                    >
-                      <option value="" disabled>Select vehicle reg number</option>
-                      {activeUnmappedVehicles.map((v) => (
-                        <option key={v._id} value={v._id}>
-                          {v.registration_number} ({v.client_id?.entity_name || "N/A"})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Replacement/New GPS Device Select */}
                 <div>

@@ -117,9 +117,16 @@ export default function GPSAllocation() {
     const imei = a.gps_device_id?.imei || "";
     const staffName = a.allocated_to_user_id?.employee_id?.name || a.allocated_to_user_id?.email || "";
     const type = a.allocated_to_type || "";
+    
+    // Resolve device_id from Redux store devices array for search matching
+    const devId = a.gps_device_id?._id || a.gps_device_id;
+    const devObj = devices.find((d) => d._id === devId);
+    const deviceIdVal = devObj ? devObj.device_id : (a.gps_device_id?.device_id || "");
+
     const searchLower = searchTerm.toLowerCase();
     return (
       imei.toLowerCase().includes(searchLower) ||
+      deviceIdVal.toLowerCase().includes(searchLower) ||
       staffName.toLowerCase().includes(searchLower) ||
       type.toLowerCase().includes(searchLower)
     );
@@ -194,8 +201,12 @@ export default function GPSAllocation() {
                         <div className="font-extrabold text-slate-950 text-sm">
                           IMEI: {a.gps_device_id?.imei || "Deleted Device"}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          ID: {a.gps_device_id?.device_id || "N/A"}
+                        <div className="text-[11px] text-slate-404 font-mono mt-0.5">
+                          ID: {(() => {
+                            const devId = a.gps_device_id?._id || a.gps_device_id;
+                            const devObj = devices.find((d) => d._id === devId);
+                            return devObj ? devObj.device_id : (a.gps_device_id?.device_id || "N/A");
+                          })()}
                         </div>
                       </div>
                     </td>

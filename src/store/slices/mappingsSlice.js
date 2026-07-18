@@ -23,7 +23,9 @@ export const mapDevice = createAsyncThunk(
       return response.data.mapping || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to map GPS device to vehicle"
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Failed to map GPS device to vehicle"
       );
     }
   }
@@ -37,7 +39,9 @@ export const updateMapping = createAsyncThunk(
       return response.data.mapping || response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to update mapping"
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Failed to update mapping"
       );
     }
   }

@@ -89,7 +89,10 @@ const vehiclesSlice = createSlice({
       })
       .addCase(fetchVehicles.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload;
+        state.items = (action.payload || []).map((v) => ({
+          ...v,
+          _id: v._id || v.vehicleId,
+        }));
       })
       .addCase(fetchVehicles.rejected, (state, action) => {
         state.loading = false;
@@ -101,21 +104,28 @@ const vehiclesSlice = createSlice({
       })
       .addCase(fetchVehiclesByClient.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload;
+        state.items = (action.payload || []).map((v) => ({
+          ...v,
+          _id: v._id || v.vehicleId,
+        }));
       })
       .addCase(fetchVehiclesByClient.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
       .addCase(createVehicle.fulfilled, (state, action) => {
-        state.items.unshift(action.payload);
+        const item = action.payload;
+        const normalized = { ...item, _id: item._id || item.vehicleId };
+        state.items.unshift(normalized);
       })
       .addCase(updateVehicle.fulfilled, (state, action) => {
+        const item = action.payload;
+        const normalized = { ...item, _id: item._id || item.vehicleId };
         const index = state.items.findIndex(
-          (v) => v._id === action.payload._id
+          (v) => v._id === normalized._id
         );
         if (index !== -1) {
-          state.items[index] = action.payload;
+          state.items[index] = normalized;
         }
       })
       .addCase(deleteVehicle.fulfilled, (state, action) => {
